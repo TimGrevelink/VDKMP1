@@ -43,7 +43,7 @@ function(input, output, session) {
                      uiOutput("domainUI"),
                      fluidRow(
                        div(class = "col-md-12 col-lg-10", 
-                           box(title = "Uitkomsten percentage per gebruiker per domein", status = "primary", solidHeader = TRUE, width = "100%",
+                           box(title = "Uitkomsten uitkomst per vraag", status = "primary", solidHeader = TRUE, width = "100%",
                                dataTableOutput("percTable")
                            )
                        )
@@ -155,12 +155,25 @@ function(input, output, session) {
   })
   
   calculateDomain <- reactive({
-    dataT <- copy(preprocessData())[, questions := NULL]
-    dt <- dataT[, lapply(.SD, mean, na.rm=TRUE) , by = Domein]
+    
+    dt <- copy(preprocessData())
+    vragen <- unique(dt$questions)
+    domeinen <- dt$Domein
+    
+    dataT <- dt[, Domein := NULL]
     columnsToNumeric <- loadData()$Gebruikersnaam
-    dtPerc = data.table(t(dt))
-    colnames(dtPerc) <- unique(dt$Domein)
-    dtPerc = dtPerc[-1,][, Gebruikersnaam := columnsToNumeric][,c("Gebruikersnaam", colnames(dtPerc)[!colnames(dtPerc) %in% "Gebruikersnaam"]), with = F]
+    dtPerc = data.table(t(dataT[, questions := NULL]))
+    colnames(dtPerc) <- vragen
+    # dtPerc = dtPerc[, Gebruikersnaam := columnsToNumeric][,c("Gebruikersnaam", colnames(dtPerc)[!colnames(dtPerc) %in% "Gebruikersnaam"]), with = F]
+    dt.output <- dtPerc[, lapply(.SD, mean, na.rm=TRUE)]
+    
+    dt.output.T = data.table(t(dt.output))
+    colnames(dt.output.T) <- "meanQuestion"
+    
+    dt.output.T = dt.output.T[, `:=` (Domein = domeinen,
+                                      questions = vragen)]
+    
+    dt.output.T = dt.output.T[,c("Domein", "questions", "meanQuestion")]
     
   })
   
@@ -207,43 +220,46 @@ function(input, output, session) {
     dt <- calculateDomain()
     
     if (!is.null(dt)) {
-      dt = dt[, Gebruikersnaam := NULL]
-      dt = dt[, lapply(.SD, as.numeric), .SDcols = colnames(dt)]
-      dt <- dt[, lapply(.SD, mean, na.rm=TRUE)]
+      dt.output <- dt[, lapply(.SD, mean, na.rm=TRUE), .SDcols = "meanQuestion", by = Domein]
+      
+      domeinen = unique(dt.output$Domein)
+      dt = data.table(t(dt.output[, Domein := NULL]))
+      colnames(dt) <- domeinen
+      
     }
     
     return(dt)
   })
   
-  sdPerc <- reactive({
-    
-    dt <- calculateDomain()
-    
-    if (!is.null(dt)) {
-      dt = dt[, Gebruikersnaam := NULL]
-      dt = dt[, lapply(.SD, as.numeric), .SDcols = colnames(dt)]
-      dt <- dt[, lapply(.SD, sd, na.rm=TRUE)]
-    }
-    
-    return(dt)
-  })
+  # sdPerc <- reactive({
+  #   
+  #   dt <- calculateDomain()
+  #   
+  #   if (!is.null(dt)) {
+  #     dt = dt[, Gebruikersnaam := NULL]
+  #     dt = dt[, lapply(.SD, as.numeric), .SDcols = colnames(dt)]
+  #     dt <- dt[, lapply(.SD, sd, na.rm=TRUE)]
+  #   }
+  #   
+  #   return(dt)
+  # })
   
-  quantilesPerc <- reactive({
-    
-    dt <- calculateDomain()
-    
-    if (!is.null(dt)) {
-      dt = dt[, Gebruikersnaam := NULL]
-      dt = dt[, lapply(.SD, as.numeric), .SDcols = colnames(dt)]
-      tmp <- lapply(quantiles, function(x){
-        dt[, lapply(.SD, function(y){ quantile(y, x)})]
-        
-      })
-      dtReturn <- rbindlist(tmp, use.names = T) 
-    }
-    
-    return(dt)
-  })
+  # quantilesPerc <- reactive({
+  #   
+  #   dt <- calculateDomain()
+  #   
+  #   if (!is.null(dt)) {
+  #     dt = dt[, Gebruikersnaam := NULL]
+  #     dt = dt[, lapply(.SD, as.numeric), .SDcols = colnames(dt)]
+  #     tmp <- lapply(quantiles, function(x){
+  #       dt[, lapply(.SD, function(y){ quantile(y, x)})]
+  #       
+  #     })
+  #     dtReturn <- rbindlist(tmp, use.names = T) 
+  #   }
+  #   
+  #   return(dt)
+  # })
   
   # Make plot --------
   
